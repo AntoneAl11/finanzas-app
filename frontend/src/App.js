@@ -6,6 +6,7 @@ const API_URL = 'http://localhost:8000';
 
 function App() {
   const [transacciones, setTransacciones] = useState([]);
+  const [categorias, setCategorias] = useState([]);
   const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
@@ -18,7 +19,17 @@ function App() {
   // Cargar transacciones y balance al iniciar
   useEffect(() => {
     cargarDatos();
+    cargarCategorias();
   }, []);
+
+  const cargarCategorias = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/categorias/${nuevaTransaccion.tipo}`);
+      setCategorias(res.data.categorias);
+    } catch (error) {
+      console.error('Error al cargar categorías:', error);
+    }
+  }
 
   const cargarDatos = async () => {
     try {
@@ -94,7 +105,11 @@ function App() {
             <label>Tipo:</label>
             <select
               value={nuevaTransaccion.tipo}
-              onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value })}
+              onChange={(e) => {
+               setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value, categoria: '' });
+               axios.get(`${API_URL}/categorias/${e.target.value}`)
+                .then(res => setCategorias(res.data.categorias));
+              }}
             >
               <option value="ingreso">Ingreso</option>
               <option value="gasto">Gasto</option>
@@ -113,14 +128,18 @@ function App() {
           </div>
 
           <div className="form-group">
-            <label>Categoría:</label>
-            <input
-              type="text"
-              value={nuevaTransaccion.categoria}
-              onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, categoria: e.target.value })}
-              required
-            />
-          </div>
+           <label>Categoría:</label>
+           <select
+            value={nuevaTransaccion.categoria}
+            onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, categoria: e.target.value })}
+            required
+           >
+            <option value="">Selecciona una categoría</option>
+            {categorias.map((cat) => (
+             <option key={cat} value={cat}>{cat}</option>
+          ))}
+          </select>
+         </div>
 
           <div className="form-group">
             <label>Descripción:</label>
