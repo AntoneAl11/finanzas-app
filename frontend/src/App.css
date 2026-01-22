@@ -42,6 +42,7 @@ body {
   border-radius: 15px;
   padding: 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
 .balance-card h3,
@@ -66,6 +67,98 @@ body {
 }
 
 .negative {
+  color: #ef4444;
+}
+
+.balance-card.clickable:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Balance por Cuenta */
+.accounts-section {
+  margin-bottom: 30px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.accounts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.accounts-section h2 {
+  color: white;
+  margin: 0;
+}
+
+.btn-close-accounts {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.btn-close-accounts:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.account-card {
+  text-align: center;
+  padding: 15px;
+  transition: transform 0.2s;
+}
+
+.account-card:hover {
+  transform: translateY(-5px);
+}
+
+.account-card h3 {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.account-card p {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.account-details {
+  display: flex;
+  justify-content: space-around;
+  font-size: 0.85rem;
+}
+
+.positive-small {
+  color: #10b981;
+}
+
+.negative-small {
   color: #ef4444;
 }
 

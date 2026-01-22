@@ -7,19 +7,23 @@ const API_URL = 'http://localhost:8000';
 function App() {
   const [transacciones, setTransacciones] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [cuentas, setCuentas] = useState([]);
+  const [balancePorCuenta, setBalancePorCuenta] = useState([]);
+  const [mostrarCuentas, setMostrarCuentas] = useState(false);
   const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
     monto: '',
     categoria: '',
     descripcion: '',
-    cuenta: 'Principal'
+    cuenta: 'Nu'
   });
 
   // Cargar transacciones y balance al iniciar
   useEffect(() => {
     cargarDatos();
     cargarCategorias();
+    cargarCuentas();
   }, []);
 
   const cargarCategorias = async () => {
@@ -29,7 +33,29 @@ function App() {
     } catch (error) {
       console.error('Error al cargar categorías:', error);
     }
-  }
+  };
+
+  const cargarCuentas = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/cuentas/`);
+      setCuentas(res.data.cuentas);
+      cargarBalancePorCuenta(res.data.cuentas);
+    } catch (error) {
+      console.error('Error al cargar cuentas:', error);
+    }
+  };
+
+  const cargarBalancePorCuenta = async (listaCuentas) => {
+    try {
+      const promesas = listaCuentas.map(cuenta => 
+        axios.get(`${API_URL}/balance/cuenta/${cuenta}`)
+      );
+      const resultados = await Promise.all(promesas);
+      setBalancePorCuenta(resultados.map(r => r.data));
+    } catch (error) {
+      console.error('Error al cargar balance por cuenta:', error);
+    }
+  };
 
   const cargarDatos = async () => {
     try {
@@ -56,9 +82,10 @@ function App() {
         monto: '',
         categoria: '',
         descripcion: '',
-        cuenta: 'Principal'
+        cuenta: 'Nu'
       });
       cargarDatos();
+      cargarCuentas();
     } catch (error) {
       console.error('Error al agregar transacción:', error);
     }
@@ -68,6 +95,7 @@ function App() {
     try {
       await axios.delete(`${API_URL}/transacciones/${id}`);
       cargarDatos();
+      cargarCuentas();
     } catch (error) {
       console.error('Error al eliminar transacción:', error);
     }
@@ -81,12 +109,21 @@ function App() {
 
       {/* Tarjetas de Balance */}
       <div className="balance-cards">
-        <div className="card balance-card">
+        
+        <div 
+          className="card balance-card clickable" 
+          onClick={() => setMostrarCuentas(!mostrarCuentas)}
+          style={{ cursor: 'pointer' }}
+        >
           <h3>Balance Total</h3>
           <p className={balance.balance >= 0 ? 'positive' : 'negative'}>
             ${balance.balance.toFixed(2)}
           </p>
+          <small style={{ color: '#999', fontSize: '0.8rem', marginTop: '10px', display: 'block' }}>
+            👆 Click para ver cuentas
+          </small>
         </div>
+        
         <div className="card income-card">
           <h3>Ingresos</h3>
           <p className="positive">${balance.ingresos.toFixed(2)}</p>
@@ -97,6 +134,35 @@ function App() {
         </div>
       </div>
 
+      {/* Balance por Cuenta (mostrar/ocultar) */}
+      {mostrarCuentas && (
+        <div className="accounts-section">
+         <div className="accounts-header">
+           <h2>Balance por Cuenta</h2>
+           <button 
+            className="btn-close-accounts" 
+            onClick={() => setMostrarCuentas(false)}
+           >
+            ✕ Cerrar
+          </button>
+         </div>
+         <div className="accounts-grid">
+          {balancePorCuenta.map((cuenta) => (
+            <div key={cuenta.cuenta} className="card account-card">
+              <h3>{cuenta.cuenta}</h3>
+              <p className={cuenta.balance >= 0 ? 'positive' : 'negative'}>
+                ${cuenta.balance.toFixed(2)}
+              </p>
+              <div className="account-details">
+                <span className="positive-small">+${cuenta.ingresos.toFixed(2)}</span>
+                <span className="negative-small">-${cuenta.gastos.toFixed(2)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+       </div>
+    )}
+
       {/* Formulario para agregar transacción */}
       <div className="card form-card">
         <h2>Nueva Transacción</h2>
@@ -106,9 +172,9 @@ function App() {
             <select
               value={nuevaTransaccion.tipo}
               onChange={(e) => {
-               setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value, categoria: '' });
-               axios.get(`${API_URL}/categorias/${e.target.value}`)
-                .then(res => setCategorias(res.data.categorias));
+                setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value, categoria: '' });
+                axios.get(`${API_URL}/categorias/${e.target.value}`)
+                  .then(res => setCategorias(res.data.categorias));
               }}
             >
               <option value="ingreso">Ingreso</option>
@@ -128,18 +194,18 @@ function App() {
           </div>
 
           <div className="form-group">
-           <label>Categoría:</label>
-           <select
-            value={nuevaTransaccion.categoria}
-            onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, categoria: e.target.value })}
-            required
-           >
-            <option value="">Selecciona una categoría</option>
-            {categorias.map((cat) => (
-             <option key={cat} value={cat}>{cat}</option>
-          ))}
-          </select>
-         </div>
+            <label>Categoría:</label>
+            <select
+              value={nuevaTransaccion.categoria}
+              onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, categoria: e.target.value })}
+              required
+            >
+              <option value="">Selecciona una categoría</option>
+              {categorias.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
 
           <div className="form-group">
             <label>Descripción:</label>
@@ -148,6 +214,19 @@ function App() {
               value={nuevaTransaccion.descripcion}
               onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, descripcion: e.target.value })}
             />
+          </div>
+
+          <div className="form-group">
+            <label>Cuenta:</label>
+            <select
+              value={nuevaTransaccion.cuenta}
+              onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, cuenta: e.target.value })}
+              required
+            >
+              {cuentas.map((cuenta) => (
+                <option key={cuenta} value={cuenta}>{cuenta}</option>
+              ))}
+            </select>
           </div>
 
           <button type="submit" className="btn-submit">Agregar</button>
@@ -166,7 +245,7 @@ function App() {
                 <div className="transaction-info">
                   <h4>{t.categoria}</h4>
                   <p>{t.descripcion}</p>
-                  <small>{new Date(t.fecha).toLocaleDateString()}</small>
+                  <small>{new Date(t.fecha).toLocaleDateString()} • {t.cuenta}</small>
                 </div>
                 <div className="transaction-amount">
                   <span className={t.tipo === 'ingreso' ? 'positive' : 'negative'}>
