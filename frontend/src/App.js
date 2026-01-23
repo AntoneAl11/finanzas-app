@@ -14,6 +14,7 @@ function App() {
   const [filtroFecha, setFiltroFecha] = useState("todas");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
@@ -32,7 +33,7 @@ function App() {
 
   useEffect(() => {
     cargarDatos();
-  }, [filtroFecha, fechaInicio, fechaFin]);
+  }, [filtroFecha, fechaInicio, fechaFin, busqueda]);
 
   const cargarCategorias = async () => {
     try {
@@ -79,7 +80,19 @@ function App() {
       ]);
       
       console.log('Transacciones recibidas:', resTransacciones.data);
-      setTransacciones(resTransacciones.data);
+
+      // Filtrar por búsqueda localmente
+      let transaccionesFiltradas = resTransacciones.data;
+      if (busqueda.trim() !== "") {
+        const terminoBusqueda = busqueda.toLowerCase();
+        transaccionesFiltradas = resTransacciones.data.filter(t =>
+          t.descripcion.toLowerCase().includes(terminoBusqueda) ||
+          t.categoria.toLowerCase().includes(terminoBusqueda) ||
+          t.cuenta.toLowerCase().includes(terminoBusqueda)
+        );
+      }
+
+      setTransacciones(transaccionesFiltradas);
       setBalance(resBalance.data);
     } catch (error) {
       console.error('Error al cargar datos:', error);
@@ -316,6 +329,25 @@ function App() {
       <div className="card transactions-card">
         <div className="transactions-header">
           <h2>Historial de Transacciones</h2>
+
+          {/* Barra de búsqueda */}
+          <div className='search-section'>
+            <input
+             type="text"
+             placeholder="🔍 Buscar por descripción, categoría o cuenta..."
+             value={busqueda}
+             onChange={(e) => setBusqueda(e.target.value)}
+             className="search-input"
+          />
+           {busqueda && (
+             <button 
+               className="btn-clear-search" 
+               onClick={() => setBusqueda("")}
+             >
+               ✕
+             </button>
+           )}
+          </div>
           
           {/* Filtros de fecha */}
           <div className="filters-section">
