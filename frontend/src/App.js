@@ -27,7 +27,7 @@ function App() {
     monto: '',
     categoria: '',
     descripcion: '',
-    cuenta: 'Nu',
+    cuenta: 'HSBC',
     cuentaDestino: '',
     fecha: new Date().toISOString().slice(0, 16)
   });
@@ -153,7 +153,7 @@ function App() {
         monto: '',
         categoria: '',
         descripcion: '',
-        cuenta: 'Nu',
+        cuenta: 'HSBC',
         cuentaDestino: '',
         fecha: new Date().toISOString().slice(0, 16)
       });
@@ -206,7 +206,7 @@ function App() {
       monto: '',
       categoria: '',
       descripcion: '',
-      cuenta: 'Nu',
+      cuenta: 'HSBC',
       cuentaDestino: '',
       fecha: new Date().toISOString().slice(0, 16)
     });
