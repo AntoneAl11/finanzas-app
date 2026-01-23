@@ -17,7 +17,8 @@ function App() {
     monto: '',
     categoria: '',
     descripcion: '',
-    cuenta: 'Nu'
+    cuenta: 'HSBC',
+    fecha: new Date().toISOString().slice(0, 16) // Formato: YYYY-MM-DDTHH:mm
   });
 
   // Cargar transacciones y balance al iniciar
@@ -93,7 +94,8 @@ function App() {
         monto: '',
         categoria: '',
         descripcion: '',
-        cuenta: 'Nu'
+        cuenta: 'HSBC',
+        fecha: new Date().toISOString().slice(0, 16)
       });
       cargarDatos();
       cargarCuentas();
@@ -118,7 +120,8 @@ function App() {
       monto: transaccion.monto.toString(),
       categoria: transaccion.categoria,
       descripcion: transaccion.descripcion,
-      cuenta: transaccion.cuenta
+      cuenta: transaccion.cuenta,
+      fecha: new Date(transaccion.fecha).toISOString().slice(0, 16)
     });
     setEditando(transaccion.id);
     
@@ -137,7 +140,8 @@ function App() {
       monto: '',
       categoria: '',
       descripcion: '',
-      cuenta: 'Nu'
+      cuenta: 'HSBC',
+      fecha: new Date().toISOString().slice(0, 16)
     });
   };
 
@@ -265,6 +269,16 @@ function App() {
                 <option key={cuenta} value={cuenta}>{cuenta}</option>
               ))}
             </select>
+          </div>
+
+          <div className="form-group">
+            <label>Fecha y Hora:</label>
+            <input
+              type="datetime-local"
+              value={nuevaTransaccion.fecha}
+              onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, fecha: e.target.value })}
+              required
+            />
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
