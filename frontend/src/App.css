@@ -220,9 +220,59 @@ form {
 }
 
 /* Lista de Transacciones */
+.transactions-card .transactions-header {
+  margin-bottom: 20px;
+}
+
 .transactions-card h2 {
   color: #333;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+.filters-section {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  padding: 10px 15px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.date-range {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.date-range input {
+  padding: 10px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.date-range input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.date-range span {
+  color: #666;
+  font-size: 0.9rem;
 }
 
 .no-transactions {

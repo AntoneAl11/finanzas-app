@@ -11,22 +11,28 @@ function App() {
   const [balancePorCuenta, setBalancePorCuenta] = useState([]);
   const [mostrarCuentas, setMostrarCuentas] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [filtroFecha, setFiltroFecha] = useState("todas");
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
   const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
     monto: '',
     categoria: '',
     descripcion: '',
-    cuenta: 'HSBC',
-    fecha: new Date().toISOString().slice(0, 16) // Formato: YYYY-MM-DDTHH:mm
+    cuenta: 'Nu',
+    fecha: new Date().toISOString().slice(0, 16)
   });
 
   // Cargar transacciones y balance al iniciar
   useEffect(() => {
-    cargarDatos();
     cargarCategorias();
     cargarCuentas();
   }, []);
+
+  useEffect(() => {
+    cargarDatos();
+  }, [filtroFecha, fechaInicio, fechaFin]);
 
   const cargarCategorias = async () => {
     try {
@@ -61,10 +67,18 @@ function App() {
 
   const cargarDatos = async () => {
     try {
+      let url = `${API_URL}/transacciones/?filtro=${filtroFecha}`;
+      
+      if (filtroFecha === "personalizado" && fechaInicio && fechaFin) {
+        url += `&fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
+      }
+      
       const [resTransacciones, resBalance] = await Promise.all([
-        axios.get(`${API_URL}/transacciones/`),
+        axios.get(url),
         axios.get(`${API_URL}/balance/`)
       ]);
+      
+      console.log('Transacciones recibidas:', resTransacciones.data);
       setTransacciones(resTransacciones.data);
       setBalance(resBalance.data);
     } catch (error) {
@@ -94,7 +108,7 @@ function App() {
         monto: '',
         categoria: '',
         descripcion: '',
-        cuenta: 'HSBC',
+        cuenta: 'Nu',
         fecha: new Date().toISOString().slice(0, 16)
       });
       cargarDatos();
@@ -140,7 +154,7 @@ function App() {
       monto: '',
       categoria: '',
       descripcion: '',
-      cuenta: 'HSBC',
+      cuenta: 'Nu',
       fecha: new Date().toISOString().slice(0, 16)
     });
   };
@@ -300,9 +314,46 @@ function App() {
 
       {/* Lista de transacciones */}
       <div className="card transactions-card">
-        <h2>Historial de Transacciones</h2>
+        <div className="transactions-header">
+          <h2>Historial de Transacciones</h2>
+          
+          {/* Filtros de fecha */}
+          <div className="filters-section">
+            <select 
+              value={filtroFecha} 
+              onChange={(e) => setFiltroFecha(e.target.value)}
+              className="filter-select"
+            >
+              <option value="todas">Todas</option>
+              <option value="hoy">Hoy</option>
+              <option value="semana">Esta Semana</option>
+              <option value="mes">Este Mes</option>
+              <option value="anio">Este Año</option>
+              <option value="personalizado">Rango Personalizado</option>
+            </select>
+            
+            {filtroFecha === "personalizado" && (
+              <div className="date-range">
+                <input
+                  type="date"
+                  value={fechaInicio}
+                  onChange={(e) => setFechaInicio(e.target.value)}
+                  placeholder="Desde"
+                />
+                <span>hasta</span>
+                <input
+                  type="date"
+                  value={fechaFin}
+                  onChange={(e) => setFechaFin(e.target.value)}
+                  placeholder="Hasta"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
         {transacciones.length === 0 ? (
-          <p className="no-transactions">No hay transacciones todavía</p>
+          <p className="no-transactions">No hay transacciones para el filtro seleccionado</p>
         ) : (
           <div className="transactions-list">
             {transacciones.map((t) => (
@@ -310,7 +361,7 @@ function App() {
                 <div className="transaction-info">
                   <h4>{t.categoria}</h4>
                   <p>{t.descripcion}</p>
-                  <small>{new Date(t.fecha).toLocaleDateString()} • {t.cuenta}</small>
+                  <small>{new Date(t.fecha).toLocaleString()} • {t.cuenta}</small>
                 </div>
                 <div className="transaction-amount">
                   <span className={t.tipo === 'ingreso' ? 'positive' : 'negative'}>
