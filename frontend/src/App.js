@@ -3,12 +3,13 @@ import axios from 'axios';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import './App.css';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://192.168.100.9:8000';
 
 // Colores para las gráficas
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#06FFA5'];
 
 function App() {
+  const [vistaActual, setVistaActual] = useState('dashboard'); // 'dashboard' o 'recurrentes'
   const [transacciones, setTransacciones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -22,6 +23,25 @@ function App() {
   const [busqueda, setBusqueda] = useState("");
   const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, transferencias: 0, balance: 0 });
   const [error, setError] = useState('');
+  
+  // Estados para gastos recurrentes
+  const [gastosRecurrentes, setGastosRecurrentes] = useState([]);
+  const [mostrarFormRecurrente, setMostrarFormRecurrente] = useState(false);
+  const [mostrarModalPago, setMostrarModalPago] = useState(false);
+  const [gastoAPagar, setGastoAPagar] = useState(null);
+  const [cuentaSeleccionada, setCuentaSeleccionada] = useState('');
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [nuevoGastoRecurrente, setNuevoGastoRecurrente] = useState({
+    nombre: '',
+    monto: '',
+    categoria: '',
+    dia_vencimiento: '',
+    metodo_pago_fijo: false,
+    cuenta: '',
+    tipo_recurrencia: 'mensual',
+    meses_total: ''
+  });
+  
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
     monto: '',
@@ -162,7 +182,10 @@ function App() {
     } catch (error) {
       console.error('Error al agregar/actualizar transacción:', error);
       if (error.response?.data?.detail) {
-        setError(error.response.data.detail);
+        const errorMsg = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+        setError(errorMsg);
       } else {
         setError('Error al procesar la transacción');
       }
@@ -240,12 +263,183 @@ function App() {
     }
   };
 
+  // ========== FUNCIONES PARA GASTOS RECURRENTES ==========
+  
+  const cargarGastosRecurrentes = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/gastos-recurrentes/mes-actual`);
+      setGastosRecurrentes(res.data);
+    } catch (error) {
+      console.error('Error al cargar gastos recurrentes:', error);
+    }
+  };
+
+  const agregarGastoRecurrente = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    try {
+      const payload = {
+        nombre: nuevoGastoRecurrente.nombre,
+        monto: parseFloat(nuevoGastoRecurrente.monto),
+        categoria: nuevoGastoRecurrente.categoria,
+        dia_vencimiento: parseInt(nuevoGastoRecurrente.dia_vencimiento),
+        metodo_pago_fijo: nuevoGastoRecurrente.metodo_pago_fijo,
+        tipo_recurrencia: nuevoGastoRecurrente.tipo_recurrencia
+      };
+      
+      // Solo agregar cuenta si metodo_pago_fijo es true
+      if (nuevoGastoRecurrente.metodo_pago_fijo) {
+        payload.cuenta = nuevoGastoRecurrente.cuenta;
+      }
+      
+      // Solo agregar meses_total si tipo_recurrencia es 'meses'
+      if (nuevoGastoRecurrente.tipo_recurrencia === 'meses') {
+        payload.meses_total = parseInt(nuevoGastoRecurrente.meses_total);
+      }
+      
+      await axios.post(`${API_URL}/gastos-recurrentes/`, payload);
+      
+      setNuevoGastoRecurrente({
+        nombre: '',
+        monto: '',
+        categoria: '',
+        dia_vencimiento: '',
+        metodo_pago_fijo: false,
+        cuenta: '',
+        tipo_recurrencia: 'mensual',
+        meses_total: ''
+      });
+      setMostrarFormRecurrente(false);
+      cargarGastosRecurrentes();
+    } catch (error) {
+      console.error('Error al agregar gasto recurrente:', error);
+      if (error.response?.data?.detail) {
+        const errorMsg = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+        setError(errorMsg);
+      } else {
+        setError('Error al agregar gasto recurrente');
+      }
+    }
+  };
+
+  const marcarComoPagado = async (gastoId, gastoNombre, metodoPagoFijo, cuentaFija) => {
+    // Si no tiene método fijo, mostrar modal para seleccionar cuenta
+    if (!metodoPagoFijo) {
+      setGastoAPagar({ id: gastoId, nombre: gastoNombre });
+      setCuentaSeleccionada('');
+      setMostrarModalPago(true);
+      return;
+    }
+    
+    // Si tiene método fijo, procesar directamente
+    procesarPago(gastoId, gastoNombre, cuentaFija);
+  };
+
+  const procesarPago = async (gastoId, gastoNombre, cuentaPago) => {
+    setError('');
+    
+    try {
+      const res = await axios.post(`${API_URL}/gastos-recurrentes/${gastoId}/pagar`, {
+        cuenta: cuentaPago
+      });
+      
+      alert(`✅ Pago registrado exitosamente: ${gastoNombre}${res.data.finalizado ? '\n🎉 ¡Gasto a meses completado!' : ''}`);
+      setMostrarModalPago(false);
+      setGastoAPagar(null);
+      cargarGastosRecurrentes();
+      cargarDatos();
+      cargarCuentas();
+    } catch (error) {
+      console.error('Error al marcar como pagado:', error);
+      if (error.response?.data?.detail) {
+        const errorMsg = typeof error.response.data.detail === 'string' 
+          ? error.response.data.detail 
+          : JSON.stringify(error.response.data.detail);
+        setError(errorMsg);
+      } else {
+        setError('Error al procesar el pago');
+      }
+    }
+  };
+
+  const confirmarPagoModal = () => {
+    if (!cuentaSeleccionada) {
+      setError('Debe seleccionar un método de pago');
+      return;
+    }
+    procesarPago(gastoAPagar.id, gastoAPagar.nombre, cuentaSeleccionada);
+  };
+
+  const eliminarGastoRecurrente = async (gastoId) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este gasto recurrente?')) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`${API_URL}/gastos-recurrentes/${gastoId}`);
+      cargarGastosRecurrentes();
+    } catch (error) {
+      console.error('Error al eliminar gasto recurrente:', error);
+    }
+  };
+
+  // Cargar gastos recurrentes cuando cambia la vista
+  useEffect(() => {
+    if (vistaActual === 'recurrentes') {
+      cargarGastosRecurrentes();
+    }
+  }, [vistaActual]);
+
   return (
     <div className="App">
       <header className="App-header">
-        <h1>💰 Finanzas Personales</h1>
+        <div className="header-content">
+          <h1>💰 Finanzas Personales</h1>
+          
+          {/* Botón hamburguesa para móvil */}
+          <button 
+            className="menu-toggle"
+            onClick={() => setMenuAbierto(!menuAbierto)}
+            aria-label="Toggle menu"
+          >
+            ☰
+          </button>
+        </div>
+        
+        {/* Menú de navegación desplegable */}
+        <div 
+          className={`nav-container ${menuAbierto ? 'menu-open' : ''}`}
+          onMouseEnter={() => setMenuAbierto(true)}
+          onMouseLeave={() => setMenuAbierto(false)}
+        >
+          <nav className={`main-nav ${menuAbierto ? 'show' : ''}`}>
+            <button 
+              className={`nav-btn ${vistaActual === 'dashboard' ? 'active' : ''}`}
+              onClick={() => {
+                setVistaActual('dashboard');
+                setMenuAbierto(false);
+              }}
+            >
+              📊 Dashboard
+            </button>
+            <button 
+              className={`nav-btn ${vistaActual === 'recurrentes' ? 'active' : ''}`}
+              onClick={() => {
+                setVistaActual('recurrentes');
+                setMenuAbierto(false);
+              }}
+            >
+              🔔 Gastos Recurrentes
+            </button>
+          </nav>
+        </div>
       </header>
 
+      {vistaActual === 'dashboard' ? (
+        <>
       {/* Tarjetas de Balance */}
       <div className="balance-cards">
         <div 
@@ -379,7 +573,7 @@ function App() {
             marginBottom: '15px',
             fontWeight: '600'
           }}>
-            ⚠️ {error}
+            ⚠️ {String(error)}
           </div>
         )}
         <form onSubmit={agregarTransaccion}>
@@ -574,7 +768,7 @@ function App() {
                       : t.tipo === 'ingreso' ? 'positive' : 'negative'
                   }>
                     {t.tipo === 'transferencia' 
-                      ? (t.monto < 0 ? '+' : '-') + '$' + Math.abs(t.monto).toFixed(2)
+                      ? (t.monto > 0 ? '+' : '-') + '$' + Math.abs(t.monto).toFixed(2)
                       : (t.tipo === 'ingreso' ? '+' : '-') + '$' + t.monto.toFixed(2)
                     }
                   </span>
@@ -594,6 +788,256 @@ function App() {
           </div>
         )}
       </div>
+      </>
+      ) : (
+        // ========== VISTA DE GASTOS RECURRENTES ==========
+        <div className="recurring-expenses-container">
+          <h2>💳 Gastos Recurrentes y a Meses</h2>
+          
+          {error && (
+            <div className="error-message" style={{ margin: '20px auto', maxWidth: '800px' }}>
+              ⚠️ {String(error)}
+              <button onClick={() => setError('')} style={{ marginLeft: '10px' }}>✖</button>
+            </div>
+          )}
+          
+          {/* Botón para agregar nuevo */}
+          <button 
+            className="btn-add-recurring"
+            onClick={() => setMostrarFormRecurrente(!mostrarFormRecurrente)}
+          >
+            {mostrarFormRecurrente ? '✖ Cancelar' : '+ Agregar Gasto Recurrente'}
+          </button>
+          
+          {/* Formulario para nuevo gasto recurrente */}
+          {mostrarFormRecurrente && (
+            <form onSubmit={agregarGastoRecurrente} className="recurring-form">
+              <h3>Nuevo Gasto Recurrente</h3>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Nombre del Gasto:</label>
+                  <input
+                    type="text"
+                    value={nuevoGastoRecurrente.nombre}
+                    onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, nombre: e.target.value })}
+                    placeholder="Ej: Internet, Luz, Netflix"
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Monto:</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={nuevoGastoRecurrente.monto}
+                    onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, monto: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Categoría:</label>
+                  <select
+                    value={nuevoGastoRecurrente.categoria}
+                    onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, categoria: e.target.value })}
+                    required
+                  >
+                    <option value="">Selecciona categoría</option>
+                    <option value="Servicios">Servicios</option>
+                    <option value="Suscripciones">Suscripciones</option>
+                    <option value="Renta">Renta</option>
+                    <option value="Seguros">Seguros</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Otros Gastos">Otros Gastos</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label>Día de Vencimiento (1-31):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={nuevoGastoRecurrente.dia_vencimiento}
+                    onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, dia_vencimiento: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Tipo:</label>
+                  <select
+                    value={nuevoGastoRecurrente.tipo_recurrencia}
+                    onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, tipo_recurrencia: e.target.value })}
+                  >
+                    <option value="mensual">Recurrente Mensual</option>
+                    <option value="meses">Gasto a Meses</option>
+                  </select>
+                </div>
+                
+                {nuevoGastoRecurrente.tipo_recurrencia === 'meses' && (
+                  <div className="form-group">
+                    <label>Número de Meses:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={nuevoGastoRecurrente.meses_total}
+                      onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, meses_total: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+              
+              <div className="form-group checkbox-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={nuevoGastoRecurrente.metodo_pago_fijo}
+                    onChange={(e) => setNuevoGastoRecurrente({ 
+                      ...nuevoGastoRecurrente, 
+                      metodo_pago_fijo: e.target.checked,
+                      cuenta: e.target.checked ? nuevoGastoRecurrente.cuenta : ''
+                    })}
+                  />
+                  <span>Usar siempre el mismo método de pago</span>
+                </label>
+              </div>
+              
+              {nuevoGastoRecurrente.metodo_pago_fijo && (
+                <div className="form-group">
+                  <label>Método de Pago:</label>
+                  <select
+                    value={nuevoGastoRecurrente.cuenta}
+                    onChange={(e) => setNuevoGastoRecurrente({ ...nuevoGastoRecurrente, cuenta: e.target.value })}
+                    required
+                  >
+                    <option value="">Selecciona cuenta</option>
+                    {cuentas.map((cuenta) => (
+                      <option key={cuenta} value={cuenta}>{cuenta}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <button type="submit" className="btn-submit">Guardar Gasto Recurrente</button>
+            </form>
+          )}
+          
+          {/* Lista de gastos recurrentes del mes */}
+          <div className="recurring-list">
+            <h3>📅 Pagos del Mes Actual</h3>
+            
+            {gastosRecurrentes.length === 0 ? (
+              <p className="no-data">No hay gastos recurrentes registrados</p>
+            ) : (
+              gastosRecurrentes.map((gasto) => (
+                <div 
+                  key={gasto.id} 
+                  className={`recurring-item ${gasto.pagado_este_mes ? 'paid' : ''} ${gasto.vencido ? 'overdue' : ''} ${gasto.mostrar_notificacion ? 'warning' : ''}`}
+                >
+                  <div className="recurring-header">
+                    <h4>{gasto.nombre}</h4>
+                    <span className="recurring-amount">${gasto.monto.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="recurring-details">
+                    <p><strong>Categoría:</strong> {gasto.categoria}</p>
+                    <p><strong>Vencimiento:</strong> {new Date(gasto.fecha_vencimiento).toLocaleDateString()}</p>
+                    {gasto.dias_para_vencimiento >= 0 && !gasto.pagado_este_mes && (
+                      <p className="days-remaining">
+                        {gasto.dias_para_vencimiento === 0 ? '⚠️ Vence hoy' : `📆 Faltan ${gasto.dias_para_vencimiento} días`}
+                      </p>
+                    )}
+                    {gasto.vencido && (
+                      <p className="overdue-label">🚨 VENCIDO</p>
+                    )}
+                    {gasto.pagado_este_mes && (
+                      <p className="paid-label">✅ Pagado este mes</p>
+                    )}
+                    <p><strong>Método de Pago:</strong> {gasto.metodo_pago_fijo ? `${gasto.cuenta} (fijo)` : 'Variable'}</p>
+                    {gasto.tipo_recurrencia === 'meses' && (
+                      <p><strong>Progreso:</strong> {gasto.meses_pagados} / {gasto.meses_total} meses</p>
+                    )}
+                  </div>
+                  
+                  <div className="recurring-actions">
+                    {!gasto.pagado_este_mes && (
+                      <button 
+                        className="btn-pay"
+                        onClick={() => marcarComoPagado(gasto.id, gasto.nombre, gasto.metodo_pago_fijo, gasto.cuenta)}
+                      >
+                        💰 Marcar como Pagado
+                      </button>
+                    )}
+                    <button 
+                      className="btn-delete-recurring"
+                      onClick={() => eliminarGastoRecurrente(gasto.id)}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Modal para seleccionar método de pago */}
+      {mostrarModalPago && (
+        <div className="modal-overlay" onClick={() => setMostrarModalPago(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Seleccionar Método de Pago</h3>
+            <p>Pago: <strong>{gastoAPagar?.nombre}</strong></p>
+            
+            {error && (
+              <div style={{ 
+                padding: '10px', 
+                backgroundColor: '#fee', 
+                color: '#dc2626', 
+                borderRadius: '5px', 
+                marginBottom: '15px' 
+              }}>
+                ⚠️ {String(error)}
+              </div>
+            )}
+            
+            <div className="form-group">
+              <label>Cuenta:</label>
+              <select
+                value={cuentaSeleccionada}
+                onChange={(e) => setCuentaSeleccionada(e.target.value)}
+                autoFocus
+              >
+                <option value="">Selecciona una cuenta</option>
+                {cuentas.map((cuenta) => (
+                  <option key={cuenta} value={cuenta}>{cuenta}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => {
+                setMostrarModalPago(false);
+                setGastoAPagar(null);
+                setError('');
+              }}>
+                Cancelar
+              </button>
+              <button className="btn-confirm" onClick={confirmarPagoModal}>
+                Confirmar Pago
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
