@@ -506,35 +506,113 @@ form {
 }
 
 /* ============ ESTILOS PARA NAVEGACIÓN ============ */
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.App-header h1 {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.menu-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 1.8rem;
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 100px;
+  animation: fadeIn 0.2s ease;
+}
+
 .main-nav {
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 20px;
+  flex-direction: column;
+  gap: 15px;
+  padding: 25px;
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  min-width: 300px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .nav-btn {
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  padding: 12px 24px;
+  border: none;
+  padding: 15px 25px;
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  text-align: left;
 }
 
 .nav-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+  transform: translateX(5px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.nav-btn.logout {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  margin-top: 10px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 20px;
+}
+
+.nav-btn.logout:hover {
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
 .nav-btn.active {
-  background: white;
-  color: #667eea;
-  border-color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 15px rgba(118, 75, 162, 0.5);
 }
 
 /* ============ ESTILOS PARA GASTOS RECURRENTES ============ */
@@ -750,12 +828,33 @@ form {
 
 /* ============ RESPONSIVE ============ */
 @media (max-width: 768px) {
+  .header-content {
+    padding: 0 15px;
+  }
+  
+  .App-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .menu-toggle {
+    font-size: 1.5rem;
+    width: 45px;
+    height: 45px;
+  }
+  
+  .menu-overlay {
+    padding-top: 80px;
+  }
+  
   .main-nav {
-    flex-direction: column;
+    min-width: 0;
+    width: 90%;
+    max-width: 350px;
   }
   
   .nav-btn {
-    width: 100%;
+    font-size: 1rem;
+    padding: 12px 20px;
   }
   
   .form-row {

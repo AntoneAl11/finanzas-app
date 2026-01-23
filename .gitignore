@@ -9,6 +9,9 @@ __pycache__/
 node_modules/
 .env
 
+# Archivos sensibles
+Google API.txt
+
 # IDE
 .vscode/
 .idea/

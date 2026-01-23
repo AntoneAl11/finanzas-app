@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import './App.css';
+import Login from './Login';
 
-const API_URL = 'http://192.168.100.9:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // Colores para las gráficas
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#06FFA5'];
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [usuario, setUsuario] = useState(null);
   const [vistaActual, setVistaActual] = useState('dashboard'); // 'dashboard' o 'recurrentes'
   const [transacciones, setTransacciones] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -52,28 +55,79 @@ function App() {
     fecha: new Date().toISOString().slice(0, 16)
   });
 
-  // Cargar transacciones y balance al iniciar
+  // Verificar autenticación al iniciar
   useEffect(() => {
-    cargarCategorias();
-    cargarCuentas();
-  }, []);
+    if (token) {
+      verificarToken();
+    }
+  }, [token]);
+
+  // Cargar transacciones y balance cuando haya token
+  useEffect(() => {
+    if (token) {
+      cargarCategorias();
+      cargarCuentas();
+    }
+  }, [token]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [filtroFecha, fechaInicio, fechaFin, busqueda]);
+    if (token) {
+      cargarDatos();
+    }
+  }, [token, filtroFecha, fechaInicio, fechaFin, busqueda]);
+
+  // Cargar gastos recurrentes cuando cambia la vista
+  useEffect(() => {
+    if (token && vistaActual === 'recurrentes') {
+      cargarGastosRecurrentes();
+    }
+  }, [token, vistaActual]);
+
+  const verificarToken = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsuario(res.data);
+    } catch (error) {
+      console.error('Token inválido:', error);
+      handleLogout();
+    }
+  };
+
+  const handleLoginSuccess = (newToken) => {
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUsuario(null);
+  };
+
+  // Helper para hacer llamadas con autenticación
+  const getConfig = () => ({
+    headers: { Authorization: `Bearer ${token}` }
+  });
 
   const cargarCategorias = async () => {
     try {
-      const res = await axios.get(`${API_URL}/categorias/${nuevaTransaccion.tipo}`);
+      const res = await axios.get(`${API_URL}/categorias/${nuevaTransaccion.tipo}`, getConfig());
       setCategorias(res.data.categorias);
     } catch (error) {
       console.error('Error al cargar categorías:', error);
     }
   };
 
+  // Si no hay token, mostrar el Login
+  if (!token) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   const cargarCuentas = async () => {
     try {
-      const res = await axios.get(`${API_URL}/cuentas/`);
+      const res = await axios.get(`${API_URL}/cuentas/`, getConfig());
       setCuentas(res.data.cuentas);
       cargarBalancePorCuenta(res.data.cuentas);
     } catch (error) {
@@ -84,7 +138,7 @@ function App() {
   const cargarBalancePorCuenta = async (listaCuentas) => {
     try {
       const promesas = listaCuentas.map(cuenta => 
-        axios.get(`${API_URL}/balance/cuenta/${cuenta}`)
+        axios.get(`${API_URL}/balance/cuenta/${cuenta}`, getConfig())
       );
       const resultados = await Promise.all(promesas);
       setBalancePorCuenta(resultados.map(r => r.data));
@@ -102,8 +156,8 @@ function App() {
       }
       
       const [resTransacciones, resBalance] = await Promise.all([
-        axios.get(url),
-        axios.get(`${API_URL}/balance/`)
+        axios.get(url, getConfig()),
+        axios.get(`${API_URL}/balance/`, getConfig())
       ]);
       
       console.log('Transacciones recibidas:', resTransacciones.data);
@@ -139,7 +193,7 @@ function App() {
           monto: parseFloat(nuevaTransaccion.monto),
           descripcion: nuevaTransaccion.descripcion,
           fecha: nuevaTransaccion.fecha
-        });
+        }, getConfig());
         
         if (response.data.error) {
           setError(response.data.error);
@@ -154,7 +208,7 @@ function App() {
           descripcion: nuevaTransaccion.descripcion,
           cuenta: nuevaTransaccion.cuenta,
           fecha: nuevaTransaccion.fecha
-        });
+        }, getConfig());
         setEditando(null);
       } else {
         // Crear nueva transacción
@@ -165,7 +219,7 @@ function App() {
           descripcion: nuevaTransaccion.descripcion,
           cuenta: nuevaTransaccion.cuenta,
           fecha: nuevaTransaccion.fecha
-        });
+        }, getConfig());
       }
       
       setNuevaTransaccion({
@@ -194,7 +248,7 @@ function App() {
 
   const eliminarTransaccion = async (id) => {
     try {
-      await axios.delete(`${API_URL}/transacciones/${id}`);
+      await axios.delete(`${API_URL}/transacciones/${id}`, getConfig());
       cargarDatos();
       cargarCuentas();
     } catch (error) {
@@ -214,7 +268,7 @@ function App() {
     setEditando(transaccion.id);
     
     // Cargar categorías del tipo de transacción
-    axios.get(`${API_URL}/categorias/${transaccion.tipo}`)
+    axios.get(`${API_URL}/categorias/${transaccion.tipo}`, getConfig())
       .then(res => setCategorias(res.data.categorias));
     
     // Scroll al formulario
@@ -267,7 +321,7 @@ function App() {
   
   const cargarGastosRecurrentes = async () => {
     try {
-      const res = await axios.get(`${API_URL}/gastos-recurrentes/mes-actual`);
+      const res = await axios.get(`${API_URL}/gastos-recurrentes/mes-actual`, getConfig());
       setGastosRecurrentes(res.data);
     } catch (error) {
       console.error('Error al cargar gastos recurrentes:', error);
@@ -298,7 +352,7 @@ function App() {
         payload.meses_total = parseInt(nuevoGastoRecurrente.meses_total);
       }
       
-      await axios.post(`${API_URL}/gastos-recurrentes/`, payload);
+      await axios.post(`${API_URL}/gastos-recurrentes/`, payload, getConfig());
       
       setNuevoGastoRecurrente({
         nombre: '',
@@ -344,7 +398,7 @@ function App() {
     try {
       const res = await axios.post(`${API_URL}/gastos-recurrentes/${gastoId}/pagar`, {
         cuenta: cuentaPago
-      });
+      }, getConfig());
       
       alert(`✅ Pago registrado exitosamente: ${gastoNombre}${res.data.finalizado ? '\n🎉 ¡Gasto a meses completado!' : ''}`);
       setMostrarModalPago(false);
@@ -379,19 +433,12 @@ function App() {
     }
     
     try {
-      await axios.delete(`${API_URL}/gastos-recurrentes/${gastoId}`);
+      await axios.delete(`${API_URL}/gastos-recurrentes/${gastoId}`, getConfig());
       cargarGastosRecurrentes();
     } catch (error) {
       console.error('Error al eliminar gasto recurrente:', error);
     }
   };
-
-  // Cargar gastos recurrentes cuando cambia la vista
-  useEffect(() => {
-    if (vistaActual === 'recurrentes') {
-      cargarGastosRecurrentes();
-    }
-  }, [vistaActual]);
 
   return (
     <div className="App">
@@ -399,23 +446,29 @@ function App() {
         <div className="header-content">
           <h1>💰 Finanzas Personales</h1>
           
-          {/* Botón hamburguesa para móvil */}
-          <button 
-            className="menu-toggle"
-            onClick={() => setMenuAbierto(!menuAbierto)}
-            aria-label="Toggle menu"
-          >
-            ☰
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {usuario && (
+              <span style={{ fontSize: '0.9rem', color: '#ddd' }}>
+                👤 {usuario.nombre}
+              </span>
+            )}
+            
+            {/* Botón hamburguesa */}
+            <button 
+              className="menu-toggle"
+              onClick={() => setMenuAbierto(!menuAbierto)}
+              aria-label="Toggle menu"
+            >
+              ☰
+            </button>
+          </div>
         </div>
-        
-        {/* Menú de navegación desplegable */}
-        <div 
-          className={`nav-container ${menuAbierto ? 'menu-open' : ''}`}
-          onMouseEnter={() => setMenuAbierto(true)}
-          onMouseLeave={() => setMenuAbierto(false)}
-        >
-          <nav className={`main-nav ${menuAbierto ? 'show' : ''}`}>
+      </header>
+      
+      {/* Menú de navegación desplegable */}
+      {menuAbierto && (
+        <div className="menu-overlay" onClick={() => setMenuAbierto(false)}>
+          <nav className="main-nav" onClick={(e) => e.stopPropagation()}>
             <button 
               className={`nav-btn ${vistaActual === 'dashboard' ? 'active' : ''}`}
               onClick={() => {
@@ -434,9 +487,18 @@ function App() {
             >
               🔔 Gastos Recurrentes
             </button>
+            <button 
+              className="nav-btn logout"
+              onClick={() => {
+                handleLogout();
+                setMenuAbierto(false);
+              }}
+            >
+              🚪 Cerrar Sesión
+            </button>
           </nav>
         </div>
-      </header>
+      )}
 
       {vistaActual === 'dashboard' ? (
         <>
@@ -585,7 +647,7 @@ function App() {
                 setError('');
                 setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value, categoria: '', cuentaDestino: '' });
                 if (e.target.value !== 'transferencia') {
-                  axios.get(`${API_URL}/categorias/${e.target.value}`)
+                  axios.get(`${API_URL}/categorias/${e.target.value}`, getConfig())
                     .then(res => setCategorias(res.data.categorias));
                 }
               }}
