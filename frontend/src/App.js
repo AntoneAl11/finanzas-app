@@ -10,6 +10,7 @@ function App() {
   const [cuentas, setCuentas] = useState([]);
   const [balancePorCuenta, setBalancePorCuenta] = useState([]);
   const [mostrarCuentas, setMostrarCuentas] = useState(false);
+  const [editando, setEditando] = useState(null);
   const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, balance: 0 });
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
@@ -73,10 +74,20 @@ function App() {
   const agregarTransaccion = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_URL}/transacciones/`, {
-        ...nuevaTransaccion,
-        monto: parseFloat(nuevaTransaccion.monto)
-      });
+      if (editando) {
+        // Actualizar transacción existente
+        await axios.put(`${API_URL}/transacciones/${editando}`, {
+          ...nuevaTransaccion,
+          monto: parseFloat(nuevaTransaccion.monto)
+        });
+        setEditando(null);
+      } else {
+        // Crear nueva transacción
+        await axios.post(`${API_URL}/transacciones/`, {
+          ...nuevaTransaccion,
+          monto: parseFloat(nuevaTransaccion.monto)
+        });
+      }
       setNuevaTransaccion({
         tipo: 'ingreso',
         monto: '',
@@ -87,7 +98,7 @@ function App() {
       cargarDatos();
       cargarCuentas();
     } catch (error) {
-      console.error('Error al agregar transacción:', error);
+      console.error('Error al agregar/actualizar transacción:', error);
     }
   };
 
@@ -101,6 +112,35 @@ function App() {
     }
   };
 
+  const editarTransaccion = (transaccion) => {
+    setNuevaTransaccion({
+      tipo: transaccion.tipo,
+      monto: transaccion.monto.toString(),
+      categoria: transaccion.categoria,
+      descripcion: transaccion.descripcion,
+      cuenta: transaccion.cuenta
+    });
+    setEditando(transaccion.id);
+    
+    // Cargar categorías del tipo de transacción
+    axios.get(`${API_URL}/categorias/${transaccion.tipo}`)
+      .then(res => setCategorias(res.data.categorias));
+    
+    // Scroll al formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelarEdicion = () => {
+    setEditando(null);
+    setNuevaTransaccion({
+      tipo: 'ingreso',
+      monto: '',
+      categoria: '',
+      descripcion: '',
+      cuenta: 'Nu'
+    });
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -109,7 +149,6 @@ function App() {
 
       {/* Tarjetas de Balance */}
       <div className="balance-cards">
-        
         <div 
           className="card balance-card clickable" 
           onClick={() => setMostrarCuentas(!mostrarCuentas)}
@@ -123,7 +162,6 @@ function App() {
             👆 Click para ver cuentas
           </small>
         </div>
-        
         <div className="card income-card">
           <h3>Ingresos</h3>
           <p className="positive">${balance.ingresos.toFixed(2)}</p>
@@ -137,35 +175,35 @@ function App() {
       {/* Balance por Cuenta (mostrar/ocultar) */}
       {mostrarCuentas && (
         <div className="accounts-section">
-         <div className="accounts-header">
-           <h2>Balance por Cuenta</h2>
-           <button 
-            className="btn-close-accounts" 
-            onClick={() => setMostrarCuentas(false)}
-           >
-            ✕ Cerrar
-          </button>
-         </div>
-         <div className="accounts-grid">
-          {balancePorCuenta.map((cuenta) => (
-            <div key={cuenta.cuenta} className="card account-card">
-              <h3>{cuenta.cuenta}</h3>
-              <p className={cuenta.balance >= 0 ? 'positive' : 'negative'}>
-                ${cuenta.balance.toFixed(2)}
-              </p>
-              <div className="account-details">
-                <span className="positive-small">+${cuenta.ingresos.toFixed(2)}</span>
-                <span className="negative-small">-${cuenta.gastos.toFixed(2)}</span>
+          <div className="accounts-header">
+            <h2>Balance por Cuenta</h2>
+            <button 
+              className="btn-close-accounts" 
+              onClick={() => setMostrarCuentas(false)}
+            >
+              ✕ Cerrar
+            </button>
+          </div>
+          <div className="accounts-grid">
+            {balancePorCuenta.map((cuenta) => (
+              <div key={cuenta.cuenta} className="card account-card">
+                <h3>{cuenta.cuenta}</h3>
+                <p className={cuenta.balance >= 0 ? 'positive' : 'negative'}>
+                  ${cuenta.balance.toFixed(2)}
+                </p>
+                <div className="account-details">
+                  <span className="positive-small">+${cuenta.ingresos.toFixed(2)}</span>
+                  <span className="negative-small">-${cuenta.gastos.toFixed(2)}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-       </div>
-    )}
+      )}
 
       {/* Formulario para agregar transacción */}
       <div className="card form-card">
-        <h2>Nueva Transacción</h2>
+        <h2>{editando ? '✏️ Editar Transacción' : 'Nueva Transacción'}</h2>
         <form onSubmit={agregarTransaccion}>
           <div className="form-group">
             <label>Tipo:</label>
@@ -229,7 +267,20 @@ function App() {
             </select>
           </div>
 
-          <button type="submit" className="btn-submit">Agregar</button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button type="submit" className="btn-submit">
+              {editando ? 'Actualizar' : 'Agregar'}
+            </button>
+            {editando && (
+              <button 
+                type="button" 
+                className="btn-cancel" 
+                onClick={cancelarEdicion}
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -251,9 +302,14 @@ function App() {
                   <span className={t.tipo === 'ingreso' ? 'positive' : 'negative'}>
                     {t.tipo === 'ingreso' ? '+' : '-'}${t.monto.toFixed(2)}
                   </span>
-                  <button onClick={() => eliminarTransaccion(t.id)} className="btn-delete">
-                    🗑️
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => editarTransaccion(t)} className="btn-edit">
+                      ✏️
+                    </button>
+                    <button onClick={() => eliminarTransaccion(t.id)} className="btn-delete">
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

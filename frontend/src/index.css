@@ -11,3 +11,34 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Botones de edición */
+.btn-edit {
+  background: #e0f2fe;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: background 0.3s;
+}
+
+.btn-edit:hover {
+  background: #bae6fd;
+}
+
+.btn-cancel {
+  background: #fee;
+  color: #dc2626;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-cancel:hover {
+  background: #fcc;
+}
