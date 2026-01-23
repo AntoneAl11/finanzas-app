@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import './App.css';
 
 const API_URL = 'http://localhost:8000';
+
+// Colores para las gráficas
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#06FFA5'];
 
 function App() {
   const [transacciones, setTransacciones] = useState([]);
@@ -10,18 +14,21 @@ function App() {
   const [cuentas, setCuentas] = useState([]);
   const [balancePorCuenta, setBalancePorCuenta] = useState([]);
   const [mostrarCuentas, setMostrarCuentas] = useState(false);
+  const [mostrarGrafica, setMostrarGrafica] = useState(null); // 'ingresos', 'gastos', o null
   const [editando, setEditando] = useState(null);
   const [filtroFecha, setFiltroFecha] = useState("todas");
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
   const [busqueda, setBusqueda] = useState("");
-  const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, balance: 0 });
+  const [balance, setBalance] = useState({ ingresos: 0, gastos: 0, transferencias: 0, balance: 0 });
+  const [error, setError] = useState('');
   const [nuevaTransaccion, setNuevaTransaccion] = useState({
     tipo: 'ingreso',
     monto: '',
     categoria: '',
     descripcion: '',
     cuenta: 'Nu',
+    cuentaDestino: '',
     fecha: new Date().toISOString().slice(0, 16)
   });
 
@@ -101,33 +108,64 @@ function App() {
 
   const agregarTransaccion = async (e) => {
     e.preventDefault();
+    setError('');
+    
     try {
-      if (editando) {
+      // Si es transferencia, usar endpoint especial
+      if (nuevaTransaccion.tipo === 'transferencia') {
+        const response = await axios.post(`${API_URL}/transferencia/`, {
+          cuenta_origen: nuevaTransaccion.cuenta,
+          cuenta_destino: nuevaTransaccion.cuentaDestino,
+          monto: parseFloat(nuevaTransaccion.monto),
+          descripcion: nuevaTransaccion.descripcion,
+          fecha: nuevaTransaccion.fecha
+        });
+        
+        if (response.data.error) {
+          setError(response.data.error);
+          return;
+        }
+      } else if (editando) {
         // Actualizar transacción existente
         await axios.put(`${API_URL}/transacciones/${editando}`, {
-          ...nuevaTransaccion,
-          monto: parseFloat(nuevaTransaccion.monto)
+          tipo: nuevaTransaccion.tipo,
+          monto: parseFloat(nuevaTransaccion.monto),
+          categoria: nuevaTransaccion.categoria,
+          descripcion: nuevaTransaccion.descripcion,
+          cuenta: nuevaTransaccion.cuenta,
+          fecha: nuevaTransaccion.fecha
         });
         setEditando(null);
       } else {
         // Crear nueva transacción
         await axios.post(`${API_URL}/transacciones/`, {
-          ...nuevaTransaccion,
-          monto: parseFloat(nuevaTransaccion.monto)
+          tipo: nuevaTransaccion.tipo,
+          monto: parseFloat(nuevaTransaccion.monto),
+          categoria: nuevaTransaccion.categoria,
+          descripcion: nuevaTransaccion.descripcion,
+          cuenta: nuevaTransaccion.cuenta,
+          fecha: nuevaTransaccion.fecha
         });
       }
+      
       setNuevaTransaccion({
         tipo: 'ingreso',
         monto: '',
         categoria: '',
         descripcion: '',
         cuenta: 'Nu',
+        cuentaDestino: '',
         fecha: new Date().toISOString().slice(0, 16)
       });
       cargarDatos();
       cargarCuentas();
     } catch (error) {
       console.error('Error al agregar/actualizar transacción:', error);
+      if (error.response?.data?.detail) {
+        setError(error.response.data.detail);
+      } else {
+        setError('Error al procesar la transacción');
+      }
     }
   };
 
@@ -162,14 +200,44 @@ function App() {
 
   const cancelarEdicion = () => {
     setEditando(null);
+    setError('');
     setNuevaTransaccion({
       tipo: 'ingreso',
       monto: '',
       categoria: '',
       descripcion: '',
       cuenta: 'Nu',
+      cuentaDestino: '',
       fecha: new Date().toISOString().slice(0, 16)
     });
+  };
+
+  // Calcular datos para gráficas por categoría
+  const calcularDatosPorCategoria = (tipo) => {
+    const transaccionesFiltradas = transacciones.filter(t => t.tipo === tipo);
+    const categoriaMap = {};
+    
+    transaccionesFiltradas.forEach(t => {
+      if (categoriaMap[t.categoria]) {
+        categoriaMap[t.categoria] += t.monto;
+      } else {
+        categoriaMap[t.categoria] = t.monto;
+      }
+    });
+
+    return Object.keys(categoriaMap).map(categoria => ({
+      name: categoria,
+      value: parseFloat(categoriaMap[categoria].toFixed(2))
+    })).sort((a, b) => b.value - a.value);
+  };
+
+  const toggleGrafica = (tipo) => {
+    if (mostrarGrafica === tipo) {
+      setMostrarGrafica(null);
+    } else {
+      setMostrarGrafica(tipo);
+      setMostrarCuentas(false);
+    }
   };
 
   return (
@@ -182,7 +250,10 @@ function App() {
       <div className="balance-cards">
         <div 
           className="card balance-card clickable" 
-          onClick={() => setMostrarCuentas(!mostrarCuentas)}
+          onClick={() => {
+            setMostrarCuentas(!mostrarCuentas);
+            setMostrarGrafica(null);
+          }}
           style={{ cursor: 'pointer' }}
         >
           <h3>Balance Total</h3>
@@ -193,15 +264,79 @@ function App() {
             👆 Click para ver cuentas
           </small>
         </div>
-        <div className="card income-card">
+        <div 
+          className="card income-card clickable"
+          onClick={() => toggleGrafica('ingresos')}
+          style={{ cursor: 'pointer' }}
+        >
           <h3>Ingresos</h3>
           <p className="positive">${balance.ingresos.toFixed(2)}</p>
+          <small style={{ color: '#999', fontSize: '0.8rem', marginTop: '10px', display: 'block' }}>
+            📊 Click para ver gráfica
+          </small>
         </div>
-        <div className="card expense-card">
+        <div 
+          className="card expense-card clickable"
+          onClick={() => toggleGrafica('gastos')}
+          style={{ cursor: 'pointer' }}
+        >
           <h3>Gastos</h3>
           <p className="negative">${balance.gastos.toFixed(2)}</p>
+          <small style={{ color: '#999', fontSize: '0.8rem', marginTop: '10px', display: 'block' }}>
+            📊 Click para ver gráfica
+          </small>
+        </div>        <div className="card transfer-card">
+          <h3>Transferencias</h3>
+          <p style={{ color: '#3b82f6', fontWeight: 'bold', fontSize: '2rem' }}>
+            ${balance.transferencias ? balance.transferencias.toFixed(2) : '0.00'}
+          </p>
+          <small style={{ color: '#999', fontSize: '0.8rem', marginTop: '10px', display: 'block' }}>
+            💸 Movimientos internos
+          </small>
+        </div>      </div>
+
+      {/* Gráficas por Categoría */}
+      {mostrarGrafica && (
+        <div className="chart-section">
+          <div className="chart-header">
+            <h2>
+              {mostrarGrafica === 'ingresos' ? '📈 Ingresos' : '📉 Gastos'} por Categoría
+            </h2>
+            <button 
+              className="btn-close-chart" 
+              onClick={() => setMostrarGrafica(null)}
+            >
+              ✕ Cerrar
+            </button>
+          </div>
+          <div className="chart-container">
+            {calcularDatosPorCategoria(mostrarGrafica === 'ingresos' ? 'ingreso' : 'gasto').length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <PieChart>
+                  <Pie
+                    data={calcularDatosPorCategoria(mostrarGrafica === 'ingresos' ? 'ingreso' : 'gasto')}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                    outerRadius={120}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {calcularDatosPorCategoria(mostrarGrafica === 'ingresos' ? 'ingreso' : 'gasto').map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="no-data">No hay datos de {mostrarGrafica} para mostrar</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Balance por Cuenta (mostrar/ocultar) */}
       {mostrarCuentas && (
@@ -235,19 +370,35 @@ function App() {
       {/* Formulario para agregar transacción */}
       <div className="card form-card">
         <h2>{editando ? '✏️ Editar Transacción' : 'Nueva Transacción'}</h2>
+        {error && (
+          <div style={{ 
+            padding: '12px', 
+            backgroundColor: '#fee', 
+            color: '#dc2626', 
+            borderRadius: '8px', 
+            marginBottom: '15px',
+            fontWeight: '600'
+          }}>
+            ⚠️ {error}
+          </div>
+        )}
         <form onSubmit={agregarTransaccion}>
           <div className="form-group">
             <label>Tipo:</label>
             <select
               value={nuevaTransaccion.tipo}
               onChange={(e) => {
-                setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value, categoria: '' });
-                axios.get(`${API_URL}/categorias/${e.target.value}`)
-                  .then(res => setCategorias(res.data.categorias));
+                setError('');
+                setNuevaTransaccion({ ...nuevaTransaccion, tipo: e.target.value, categoria: '', cuentaDestino: '' });
+                if (e.target.value !== 'transferencia') {
+                  axios.get(`${API_URL}/categorias/${e.target.value}`)
+                    .then(res => setCategorias(res.data.categorias));
+                }
               }}
             >
               <option value="ingreso">Ingreso</option>
               <option value="gasto">Gasto</option>
+              <option value="transferencia">Transferencia</option>
             </select>
           </div>
 
@@ -262,19 +413,21 @@ function App() {
             />
           </div>
 
-          <div className="form-group">
-            <label>Categoría:</label>
-            <select
-              value={nuevaTransaccion.categoria}
-              onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, categoria: e.target.value })}
-              required
-            >
-              <option value="">Selecciona una categoría</option>
-              {categorias.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
+          {nuevaTransaccion.tipo !== 'transferencia' && (
+            <div className="form-group">
+              <label>Categoría:</label>
+              <select
+                value={nuevaTransaccion.categoria}
+                onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, categoria: e.target.value })}
+                required
+              >
+                <option value="">Selecciona una categoría</option>
+                {categorias.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Descripción:</label>
@@ -286,7 +439,7 @@ function App() {
           </div>
 
           <div className="form-group">
-            <label>Cuenta:</label>
+            <label>{nuevaTransaccion.tipo === 'transferencia' ? 'Cuenta Origen:' : 'Cuenta:'}</label>
             <select
               value={nuevaTransaccion.cuenta}
               onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, cuenta: e.target.value })}
@@ -297,6 +450,22 @@ function App() {
               ))}
             </select>
           </div>
+
+          {nuevaTransaccion.tipo === 'transferencia' && (
+            <div className="form-group">
+              <label>Cuenta Destino:</label>
+              <select
+                value={nuevaTransaccion.cuentaDestino}
+                onChange={(e) => setNuevaTransaccion({ ...nuevaTransaccion, cuentaDestino: e.target.value })}
+                required
+              >
+                <option value="">Selecciona cuenta destino</option>
+                {cuentas.filter(c => c !== nuevaTransaccion.cuenta).map((cuenta) => (
+                  <option key={cuenta} value={cuenta}>{cuenta}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Fecha y Hora:</label>
@@ -389,20 +558,32 @@ function App() {
         ) : (
           <div className="transactions-list">
             {transacciones.map((t) => (
-              <div key={t.id} className={`transaction-item ${t.tipo}`}>
+              <div key={t.id} className={`transaction-item ${t.tipo === 'ingreso' && t.categoria === 'Transferencia' ? 'transferencia' : t.tipo === 'gasto' && t.categoria === 'Transferencia' ? 'transferencia' : t.tipo}`}>
                 <div className="transaction-info">
-                  <h4>{t.categoria}</h4>
+                  <h4>
+                    {t.categoria === 'Transferencia' ? '💸 ' : ''}
+                    {t.categoria}
+                  </h4>
                   <p>{t.descripcion}</p>
                   <small>{new Date(t.fecha).toLocaleString()} • {t.cuenta}</small>
                 </div>
                 <div className="transaction-amount">
-                  <span className={t.tipo === 'ingreso' ? 'positive' : 'negative'}>
-                    {t.tipo === 'ingreso' ? '+' : '-'}${t.monto.toFixed(2)}
+                  <span className={
+                    t.tipo === 'transferencia'
+                      ? 'transfer' 
+                      : t.tipo === 'ingreso' ? 'positive' : 'negative'
+                  }>
+                    {t.tipo === 'transferencia' 
+                      ? (t.monto < 0 ? '+' : '-') + '$' + Math.abs(t.monto).toFixed(2)
+                      : (t.tipo === 'ingreso' ? '+' : '-') + '$' + t.monto.toFixed(2)
+                    }
                   </span>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => editarTransaccion(t)} className="btn-edit">
-                      ✏️
-                    </button>
+                    {t.tipo !== 'transferencia' && (
+                      <button onClick={() => editarTransaccion(t)} className="btn-edit">
+                        ✏️
+                      </button>
+                    )}
                     <button onClick={() => eliminarTransaccion(t.id)} className="btn-delete">
                       🗑️
                     </button>

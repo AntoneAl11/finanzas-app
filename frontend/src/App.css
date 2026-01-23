@@ -47,7 +47,8 @@ body {
 
 .balance-card h3,
 .income-card h3,
-.expense-card h3 {
+.expense-card h3,
+.transfer-card h3 {
   color: #666;
   font-size: 1rem;
   margin-bottom: 10px;
@@ -57,7 +58,8 @@ body {
 
 .balance-card p,
 .income-card p,
-.expense-card p {
+.expense-card p,
+.transfer-card p {
   font-size: 2rem;
   font-weight: bold;
 }
@@ -73,6 +75,60 @@ body {
 .balance-card.clickable:hover {
   transform: translateY(-5px);
   box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+.income-card.clickable:hover,
+.expense-card.clickable:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Sección de Gráficas */
+.chart-section {
+  margin-bottom: 30px;
+  animation: slideDown 0.3s ease-out;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.chart-section h2 {
+  color: white;
+  margin: 0;
+}
+
+.btn-close-chart {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.btn-close-chart:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.chart-container {
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.no-data {
+  text-align: center;
+  color: #999;
+  padding: 40px;
+  font-style: italic;
+  font-size: 1.1rem;
 }
 
 /* Balance por Cuenta */
@@ -306,6 +362,11 @@ form {
   border-left-color: #ef4444;
 }
 
+.transaction-item.transferencia {
+  border-left-color: #3b82f6;
+  background: linear-gradient(90deg, #eff6ff 0%, #f9fafb 100%);
+}
+
 .transaction-info h4 {
   color: #333;
   margin-bottom: 5px;
@@ -330,6 +391,10 @@ form {
 .transaction-amount span {
   font-size: 1.3rem;
   font-weight: bold;
+}
+
+.transfer {
+  color: #3b82f6;
 }
 
 .btn-delete {
