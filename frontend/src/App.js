@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import './App.css';
 import Login from './Login';
 
@@ -14,7 +14,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [usuario, setUsuario] = useState(null);
-  const [vistaActual, setVistaActual] = useState('dashboard'); // 'dashboard', 'historial', 'recurrentes', 'configuracion'
+  const [vistaActual, setVistaActual] = useState('dashboard'); // 'dashboard', 'historial', 'recurrentes', 'analisis', 'configuracion'
   const [transacciones, setTransacciones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -39,6 +39,11 @@ function App() {
   const [nuevaPassword, setNuevaPassword] = useState('');
   const [confirmarPassword, setConfirmarPassword] = useState('');
   const [mensajePassword, setMensajePassword] = useState('');
+  
+  // Estados para análisis
+  const [tendencias, setTendencias] = useState([]);
+  const [topCategorias, setTopCategorias] = useState([]);
+  
   const [nuevoGastoRecurrente, setNuevoGastoRecurrente] = useState({
     nombre: '',
     monto: '',
@@ -85,6 +90,9 @@ function App() {
   useEffect(() => {
     if (token && vistaActual === 'recurrentes') {
       cargarGastosRecurrentes();
+    }
+    if (token && vistaActual === 'analisis') {
+      cargarAnalisis();
     }
   }, [token, vistaActual]);
 
@@ -389,6 +397,19 @@ function App() {
     }
   };
 
+  const cargarAnalisis = async () => {
+    try {
+      const [tendenciasRes, topCategoriasRes] = await Promise.all([
+        axios.get(`${API_URL}/analisis/tendencias`, getConfig()),
+        axios.get(`${API_URL}/analisis/top-categorias`, getConfig())
+      ]);
+      setTendencias(tendenciasRes.data.tendencias);
+      setTopCategorias(topCategoriasRes.data.top_categorias);
+    } catch (error) {
+      console.error('Error al cargar análisis:', error);
+    }
+  };
+
   const agregarGastoRecurrente = async (e) => {
     e.preventDefault();
     setError('');
@@ -556,6 +577,15 @@ function App() {
               }}
             >
               🔔 Gastos Recurrentes
+            </button>
+            <button 
+              className={`nav-btn ${vistaActual === 'analisis' ? 'active' : ''}`}
+              onClick={() => {
+                setVistaActual('analisis');
+                setMenuAbierto(false);
+              }}
+            >
+              📈 Análisis
             </button>
             <button 
               className={`nav-btn ${vistaActual === 'configuracion' ? 'active' : ''}`}
@@ -1181,6 +1211,80 @@ function App() {
           </div>
         </div>
       )}
+        </div>
+      ) : vistaActual === 'analisis' ? (
+        // ========== VISTA DE ANÁLISIS ==========
+        <div className="analisis-container">
+          <h2 style={{ marginBottom: '30px', color: '#1e40af' }}>📈 Análisis Financiero</h2>
+          
+          {/* Tendencias Mensuales */}
+          <div className="card" style={{ marginBottom: '30px' }}>
+            <h3 style={{ marginBottom: '20px', color: '#059669' }}>📊 Tendencias de Ingresos y Gastos (Últimos 6 Meses)</h3>
+            {tendencias.length > 0 ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart data={tendencias}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mes" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                  <Legend />
+                  <Line type="monotone" dataKey="ingresos" stroke="#059669" strokeWidth={3} name="Ingresos" />
+                  <Line type="monotone" dataKey="gastos" stroke="#dc2626" strokeWidth={3} name="Gastos" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>
+                No hay datos suficientes para mostrar tendencias
+              </p>
+            )}
+          </div>
+
+          {/* Comparación Mes Actual vs Anterior */}
+          {tendencias.length >= 2 && (
+            <div className="card" style={{ marginBottom: '30px' }}>
+              <h3 style={{ marginBottom: '20px', color: '#059669' }}>📆 Comparación Mes Actual vs Anterior</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+                <div style={{ padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '10px', border: '2px solid #059669' }}>
+                  <h4 style={{ color: '#059669', marginBottom: '10px' }}>Mes Actual</h4>
+                  <p><strong>Ingresos:</strong> ${tendencias[tendencias.length - 1].ingresos.toFixed(2)}</p>
+                  <p><strong>Gastos:</strong> ${tendencias[tendencias.length - 1].gastos.toFixed(2)}</p>
+                  <p><strong>Balance:</strong> ${(tendencias[tendencias.length - 1].ingresos - tendencias[tendencias.length - 1].gastos).toFixed(2)}</p>
+                </div>
+                <div style={{ padding: '20px', backgroundColor: '#f3f4f6', borderRadius: '10px', border: '2px solid #6b7280' }}>
+                  <h4 style={{ color: '#6b7280', marginBottom: '10px' }}>Mes Anterior</h4>
+                  <p><strong>Ingresos:</strong> ${tendencias[tendencias.length - 2].ingresos.toFixed(2)}</p>
+                  <p><strong>Gastos:</strong> ${tendencias[tendencias.length - 2].gastos.toFixed(2)}</p>
+                  <p><strong>Balance:</strong> ${(tendencias[tendencias.length - 2].ingresos - tendencias[tendencias.length - 2].gastos).toFixed(2)}</p>
+                </div>
+                <div style={{ padding: '20px', backgroundColor: '#eff6ff', borderRadius: '10px', border: '2px solid #1e40af' }}>
+                  <h4 style={{ color: '#1e40af', marginBottom: '10px' }}>Diferencia</h4>
+                  <p><strong>Ingresos:</strong> ${(tendencias[tendencias.length - 1].ingresos - tendencias[tendencias.length - 2].ingresos).toFixed(2)}</p>
+                  <p><strong>Gastos:</strong> ${(tendencias[tendencias.length - 1].gastos - tendencias[tendencias.length - 2].gastos).toFixed(2)}</p>
+                  <p><strong>Balance:</strong> ${((tendencias[tendencias.length - 1].ingresos - tendencias[tendencias.length - 1].gastos) - (tendencias[tendencias.length - 2].ingresos - tendencias[tendencias.length - 2].gastos)).toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Top 5 Categorías */}
+          <div className="card">
+            <h3 style={{ marginBottom: '20px', color: '#059669' }}>🏆 Top 5 Categorías de Gastos (Últimos 30 Días)</h3>
+            {topCategorias.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topCategorias}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="categoria" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                  <Bar dataKey="total" fill="#dc2626" name="Total Gastado" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>
+                No hay gastos registrados en los últimos 30 días
+              </p>
+            )}
+          </div>
         </div>
       ) : vistaActual === 'configuracion' ? (
         // ========== VISTA DE CONFIGURACIÓN ==========
