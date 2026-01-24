@@ -4,7 +4,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 import './App.css';
 import Login from './Login';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Detectar automáticamente el hostname (localhost o IP)
+const hostname = window.location.hostname;
+const API_URL = `http://${hostname}:8000`;
 
 // Colores para las gráficas
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#06FFA5'];
@@ -12,7 +14,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [usuario, setUsuario] = useState(null);
-  const [vistaActual, setVistaActual] = useState('dashboard'); // 'dashboard' o 'recurrentes'
+  const [vistaActual, setVistaActual] = useState('dashboard'); // 'dashboard', 'historial', 'recurrentes', 'configuracion'
   const [transacciones, setTransacciones] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -34,6 +36,9 @@ function App() {
   const [gastoAPagar, setGastoAPagar] = useState(null);
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState('');
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [nuevaPassword, setNuevaPassword] = useState('');
+  const [confirmarPassword, setConfirmarPassword] = useState('');
+  const [mensajePassword, setMensajePassword] = useState('');
   const [nuevoGastoRecurrente, setNuevoGastoRecurrente] = useState({
     nombre: '',
     monto: '',
@@ -117,6 +122,62 @@ function App() {
       setCategorias(res.data.categorias);
     } catch (error) {
       console.error('Error al cargar categorías:', error);
+    }
+  };
+
+  const guardarPassword = async (e) => {
+    e.preventDefault();
+    setMensajePassword('');
+    setError('');
+
+    // Validar longitud mínima
+    if (nuevaPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    // Validar que las contraseñas coincidan
+    if (nuevaPassword !== confirmarPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+
+    // Validar mayúscula
+    if (!/[A-Z]/.test(nuevaPassword)) {
+      setError('La contraseña debe contener al menos una letra mayúscula');
+      return;
+    }
+
+    // Validar minúscula
+    if (!/[a-z]/.test(nuevaPassword)) {
+      setError('La contraseña debe contener al menos una letra minúscula');
+      return;
+    }
+
+    // Validar número
+    if (!/[0-9]/.test(nuevaPassword)) {
+      setError('La contraseña debe contener al menos un número');
+      return;
+    }
+
+    // Validar símbolo (incluyendo =)
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(nuevaPassword)) {
+      setError('La contraseña debe contener al menos un símbolo (!@#$%^&*()_+-=[]{};\'":\\|,.<>/?)');
+      return;
+    }
+
+    try {
+      const res = await axios.post(
+        `${API_URL}/me/password`,
+        { password: nuevaPassword },
+        getConfig()
+      );
+      setMensajePassword(res.data.message);
+      setNuevaPassword('');
+      setConfirmarPassword('');
+      setTimeout(() => setMensajePassword(''), 3000);
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Error al actualizar contraseña');
     }
   };
 
@@ -479,6 +540,15 @@ function App() {
               📊 Dashboard
             </button>
             <button 
+              className={`nav-btn ${vistaActual === 'historial' ? 'active' : ''}`}
+              onClick={() => {
+                setVistaActual('historial');
+                setMenuAbierto(false);
+              }}
+            >
+              📜 Historial de Transacciones
+            </button>
+            <button 
               className={`nav-btn ${vistaActual === 'recurrentes' ? 'active' : ''}`}
               onClick={() => {
                 setVistaActual('recurrentes');
@@ -486,6 +556,17 @@ function App() {
               }}
             >
               🔔 Gastos Recurrentes
+            </button>
+            <button 
+              className={`nav-btn ${vistaActual === 'configuracion' ? 'active' : ''}`}
+              onClick={() => {
+                setVistaActual('configuracion');
+                setMenuAbierto(false);
+                setError('');
+                setMensajePassword('');
+              }}
+            >
+              ⚙️ Configuración
             </button>
             <button 
               className="nav-btn logout"
@@ -500,7 +581,110 @@ function App() {
         </div>
       )}
 
-      {vistaActual === 'dashboard' ? (
+      {vistaActual === 'historial' ? (
+        // ========== VISTA DE HISTORIAL DE TRANSACCIONES ==========
+        <div className="historial-container">
+          {/* Lista de transacciones */}
+          <div className="card transactions-card">
+            <div className="transactions-header">
+              <h2>📜 Historial de Transacciones</h2>
+              {/* Barra de búsqueda */}
+              <div className='search-section'>
+                <input
+                 type="text"
+                 placeholder="🔍 Buscar por descripción, categoría o cuenta..."
+                 value={busqueda}
+                 onChange={(e) => setBusqueda(e.target.value)}
+                 className="search-input"
+              />
+               {busqueda && (
+                 <button 
+                   className="btn-clear-search" 
+                   onClick={() => setBusqueda("")}
+                 >
+                   ✕
+                 </button>
+               )}
+              </div>
+              
+              {/* Filtros de fecha */}
+              <div className="filters-section">
+                <select 
+                  value={filtroFecha} 
+                  onChange={(e) => setFiltroFecha(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="todas">Todas</option>
+                  <option value="hoy">Hoy</option>
+                  <option value="semana">Esta Semana</option>
+                  <option value="mes">Este Mes</option>
+                  <option value="anio">Este Año</option>
+                  <option value="personalizado">Rango Personalizado</option>
+                </select>
+                
+                {filtroFecha === "personalizado" && (
+                  <div className="date-range">
+                    <input
+                      type="date"
+                      value={fechaInicio}
+                      onChange={(e) => setFechaInicio(e.target.value)}
+                      placeholder="Desde"
+                    />
+                    <span>hasta</span>
+                    <input
+                      type="date"
+                      value={fechaFin}
+                      onChange={(e) => setFechaFin(e.target.value)}
+                      placeholder="Hasta"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {transacciones.length === 0 ? (
+              <p className="no-transactions">No hay transacciones para el filtro seleccionado</p>
+            ) : (
+              <div className="transactions-list">
+                {transacciones.map((t) => (
+                  <div key={t.id} className={`transaction-item ${t.tipo === 'ingreso' && t.categoria === 'Transferencia' ? 'transferencia' : t.tipo === 'gasto' && t.categoria === 'Transferencia' ? 'transferencia' : t.tipo}`}>
+                    <div className="transaction-info">
+                      <h4>
+                        {t.categoria === 'Transferencia' ? '💸 ' : ''}
+                        {t.categoria}
+                      </h4>
+                      <p>{t.descripcion}</p>
+                      <small>{new Date(t.fecha).toLocaleString()} • {t.cuenta}</small>
+                    </div>
+                    <div className="transaction-amount">
+                      <span className={
+                        t.tipo === 'transferencia'
+                          ? 'transfer' 
+                          : t.tipo === 'ingreso' ? 'positive' : 'negative'
+                      }>
+                        {t.tipo === 'transferencia' 
+                          ? (t.monto > 0 ? '+' : '-') + '$' + Math.abs(t.monto).toFixed(2)
+                          : (t.tipo === 'ingreso' ? '+' : '-') + '$' + t.monto.toFixed(2)
+                        }
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {t.tipo !== 'transferencia' && (
+                          <button onClick={() => editarTransaccion(t)} className="btn-edit">
+                            ✏️
+                          </button>
+                        )}
+                        <button onClick={() => eliminarTransaccion(t.id)} className="btn-delete">
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : vistaActual === 'dashboard' ? (
         <>
       {/* Tarjetas de Balance */}
       <div className="balance-cards">
@@ -749,109 +933,8 @@ function App() {
           </div>
         </form>
       </div>
-
-      {/* Lista de transacciones */}
-      <div className="card transactions-card">
-        <div className="transactions-header">
-          <h2>Historial de Transacciones</h2>
-
-          {/* Barra de búsqueda */}
-          <div className='search-section'>
-            <input
-             type="text"
-             placeholder="🔍 Buscar por descripción, categoría o cuenta..."
-             value={busqueda}
-             onChange={(e) => setBusqueda(e.target.value)}
-             className="search-input"
-          />
-           {busqueda && (
-             <button 
-               className="btn-clear-search" 
-               onClick={() => setBusqueda("")}
-             >
-               ✕
-             </button>
-           )}
-          </div>
-          
-          {/* Filtros de fecha */}
-          <div className="filters-section">
-            <select 
-              value={filtroFecha} 
-              onChange={(e) => setFiltroFecha(e.target.value)}
-              className="filter-select"
-            >
-              <option value="todas">Todas</option>
-              <option value="hoy">Hoy</option>
-              <option value="semana">Esta Semana</option>
-              <option value="mes">Este Mes</option>
-              <option value="anio">Este Año</option>
-              <option value="personalizado">Rango Personalizado</option>
-            </select>
-            
-            {filtroFecha === "personalizado" && (
-              <div className="date-range">
-                <input
-                  type="date"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                  placeholder="Desde"
-                />
-                <span>hasta</span>
-                <input
-                  type="date"
-                  value={fechaFin}
-                  onChange={(e) => setFechaFin(e.target.value)}
-                  placeholder="Hasta"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {transacciones.length === 0 ? (
-          <p className="no-transactions">No hay transacciones para el filtro seleccionado</p>
-        ) : (
-          <div className="transactions-list">
-            {transacciones.map((t) => (
-              <div key={t.id} className={`transaction-item ${t.tipo === 'ingreso' && t.categoria === 'Transferencia' ? 'transferencia' : t.tipo === 'gasto' && t.categoria === 'Transferencia' ? 'transferencia' : t.tipo}`}>
-                <div className="transaction-info">
-                  <h4>
-                    {t.categoria === 'Transferencia' ? '💸 ' : ''}
-                    {t.categoria}
-                  </h4>
-                  <p>{t.descripcion}</p>
-                  <small>{new Date(t.fecha).toLocaleString()} • {t.cuenta}</small>
-                </div>
-                <div className="transaction-amount">
-                  <span className={
-                    t.tipo === 'transferencia'
-                      ? 'transfer' 
-                      : t.tipo === 'ingreso' ? 'positive' : 'negative'
-                  }>
-                    {t.tipo === 'transferencia' 
-                      ? (t.monto > 0 ? '+' : '-') + '$' + Math.abs(t.monto).toFixed(2)
-                      : (t.tipo === 'ingreso' ? '+' : '-') + '$' + t.monto.toFixed(2)
-                    }
-                  </span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {t.tipo !== 'transferencia' && (
-                      <button onClick={() => editarTransaccion(t)} className="btn-edit">
-                        ✏️
-                      </button>
-                    )}
-                    <button onClick={() => eliminarTransaccion(t.id)} className="btn-delete">
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
       </>
-      ) : (
+      ) : vistaActual === 'recurrentes' ? (
         // ========== VISTA DE GASTOS RECURRENTES ==========
         <div className="recurring-expenses-container">
           <h2>💳 Gastos Recurrentes y a Meses</h2>
@@ -1049,20 +1132,18 @@ function App() {
               ))
             )}
           </div>
-        </div>
-      )}
-      
-      {/* Modal para seleccionar método de pago */}
-      {mostrarModalPago && (
-        <div className="modal-overlay" onClick={() => setMostrarModalPago(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Seleccionar Método de Pago</h3>
-            <p>Pago: <strong>{gastoAPagar?.nombre}</strong></p>
-            
-            {error && (
-              <div style={{ 
-                padding: '10px', 
-                backgroundColor: '#fee', 
+          
+          {/* Modal para seleccionar método de pago */}
+          {mostrarModalPago && (
+            <div className="modal-overlay" onClick={() => setMostrarModalPago(false)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h3>Seleccionar Método de Pago</h3>
+                <p>Pago: <strong>{gastoAPagar?.nombre}</strong></p>
+                
+                {error && (
+                  <div style={{ 
+                    padding: '10px', 
+                    backgroundColor: '#fee', 
                 color: '#dc2626', 
                 borderRadius: '5px', 
                 marginBottom: '15px' 
@@ -1099,6 +1180,99 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+        </div>
+      ) : vistaActual === 'configuracion' ? (
+        // ========== VISTA DE CONFIGURACIÓN ==========
+        <div className="configuracion-container">
+          <div className="card">
+            <h2>⚙️ Configuración de Cuenta</h2>
+            
+            <div style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid #e5e7eb' }}>
+              <h3 style={{ color: '#1e40af', marginBottom: '10px' }}>Información de Usuario</h3>
+              <p><strong>Email:</strong> {usuario?.email}</p>
+              <p><strong>Nombre:</strong> {usuario?.nombre}</p>
+              {usuario?.oauth_provider && (
+                <p><strong>Método de registro:</strong> Google OAuth</p>
+              )}
+            </div>
+
+            <div>
+              <h3 style={{ color: '#1e40af', marginBottom: '15px' }}>
+                {usuario?.oauth_provider ? 'Agregar Contraseña' : 'Cambiar Contraseña'}
+              </h3>
+              <p style={{ color: '#666', marginBottom: '20px' }}>
+                {usuario?.oauth_provider 
+                  ? 'Agrega una contraseña para poder iniciar sesión sin Google en otros dispositivos'
+                  : 'Actualiza tu contraseña de acceso'}
+              </p>
+
+              {mensajePassword && (
+                <div style={{ 
+                  padding: '10px', 
+                  backgroundColor: '#dcfce7', 
+                  color: '#166534', 
+                  borderRadius: '5px', 
+                  marginBottom: '15px',
+                  fontWeight: '600'
+                }}>
+                  ✓ {mensajePassword}
+                </div>
+              )}
+
+              {error && (
+                <div style={{ 
+                  padding: '10px', 
+                  backgroundColor: '#fee', 
+                  color: '#dc2626', 
+                  borderRadius: '5px', 
+                  marginBottom: '15px',
+                  fontWeight: '600'
+                }}>
+                  ⚠️ {error}
+                </div>
+              )}
+
+              <form onSubmit={guardarPassword}>
+                <div className="form-group">
+                  <label>Nueva Contraseña:</label>
+                  <input
+                    type="password"
+                    value={nuevaPassword}
+                    onChange={(e) => setNuevaPassword(e.target.value)}
+                    placeholder="Ingresa tu contraseña"
+                    required
+                  />
+                  <small style={{ display: 'block', marginTop: '8px', color: '#666', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                    <strong>Requisitos:</strong><br/>
+                    • Entre 6 y 72 caracteres<br/>
+                    • Al menos una letra mayúscula (A-Z)<br/>
+                    • Al menos una letra minúscula (a-z)<br/>
+                    • Al menos un número (0-9)<br/>
+                    • Al menos un símbolo (!@#$%^&*()_+-=[]&#123;&#125;;'":\|,.&lt;&gt;/?)
+                  </small>
+                </div>
+
+                <div className="form-group">
+                  <label>Confirmar Contraseña:</label>
+                  <input
+                    type="password"
+                    value={confirmarPassword}
+                    onChange={(e) => setConfirmarPassword(e.target.value)}
+                    placeholder="Repite la contraseña"
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn-submit">
+                  {usuario?.oauth_provider ? 'Agregar Contraseña' : 'Cambiar Contraseña'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <></>
       )}
     </div>
   );

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './Login.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Detectar automáticamente el hostname (localhost o IP)
+const hostname = window.location.hostname;
+const API_URL = `http://${hostname}:8000`;
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
 function Login({ onLoginSuccess }) {
@@ -51,7 +53,7 @@ function Login({ onLoginSuccess }) {
         const data = await response.json();
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('usuario', JSON.stringify(data.usuario));
-        onLoginSuccess(data.usuario);
+        onLoginSuccess(data.access_token);
       } else {
         // Login
         const response = await fetch(`${API_URL}/login`, {
@@ -71,7 +73,7 @@ function Login({ onLoginSuccess }) {
         const data = await response.json();
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('usuario', JSON.stringify(data.usuario));
-        onLoginSuccess(data.usuario);
+        onLoginSuccess(data.access_token);
       }
     } catch (err) {
       setError(err.message);
@@ -135,6 +137,8 @@ function Login({ onLoginSuccess }) {
       const data = await res.json();
 
       if (res.ok) {
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('usuario', JSON.stringify(data.usuario));
         onLoginSuccess(data.access_token);
       } else {
         setError(data.detail || 'Error al iniciar sesión con Google');
