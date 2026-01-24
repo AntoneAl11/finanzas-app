@@ -44,6 +44,9 @@ function App() {
   const [tendencias, setTendencias] = useState([]);
   const [topCategorias, setTopCategorias] = useState([]);
   
+  // Estados para recordatorios
+  const [recordatorios, setRecordatorios] = useState([]);
+  
   const [nuevoGastoRecurrente, setNuevoGastoRecurrente] = useState({
     nombre: '',
     monto: '',
@@ -93,6 +96,9 @@ function App() {
     }
     if (token && vistaActual === 'analisis') {
       cargarAnalisis();
+    }
+    if (token && vistaActual === 'dashboard') {
+      cargarRecordatorios();
     }
   }, [token, vistaActual]);
 
@@ -410,6 +416,29 @@ function App() {
     }
   };
 
+  const cargarRecordatorios = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/recordatorios`, getConfig());
+      setRecordatorios(res.data.recordatorios);
+    } catch (error) {
+      console.error('Error al cargar recordatorios:', error);
+    }
+  };
+
+  const enviarRecordatoriosEmail = async () => {
+    try {
+      const res = await axios.post(`${API_URL}/recordatorios/enviar-email`, {}, getConfig());
+      if (res.data.enviado) {
+        alert('✅ Recordatorios enviados por email');
+      } else {
+        alert('⚠️ ' + res.data.mensaje);
+      }
+    } catch (error) {
+      console.error('Error al enviar email:', error);
+      alert('❌ Error al enviar email. Verifica la configuración de SMTP.');
+    }
+  };
+
   const agregarGastoRecurrente = async (e) => {
     e.preventDefault();
     setError('');
@@ -716,6 +745,70 @@ function App() {
         </div>
       ) : vistaActual === 'dashboard' ? (
         <>
+      {/* Banner de Recordatorios */}
+      {recordatorios.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h3 style={{ margin: 0, color: '#1e40af' }}>🔔 Recordatorios</h3>
+            <button 
+              onClick={enviarRecordatoriosEmail}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#1e40af',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600'
+              }}
+            >
+              📧 Enviar por Email
+            </button>
+          </div>
+          {recordatorios.map((recordatorio, index) => (
+            <div 
+              key={index}
+              style={{
+                padding: '15px 20px',
+                marginBottom: '10px',
+                borderRadius: '10px',
+                border: '2px solid',
+                borderColor: recordatorio.prioridad === 'alta' ? '#dc2626' : recordatorio.prioridad === 'media' ? '#f59e0b' : '#3b82f6',
+                backgroundColor: recordatorio.prioridad === 'alta' ? '#fee' : recordatorio.prioridad === 'media' ? '#fffbeb' : '#eff6ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ fontSize: '1.5rem' }}>
+                  {recordatorio.tipo === 'gasto_recurrente' ? '🔔' : '📝'}
+                </span>
+                <div>
+                  <p style={{ margin: 0, fontWeight: '600', color: '#1f2937' }}>
+                    {recordatorio.mensaje}
+                  </p>
+                  {recordatorio.monto && (
+                    <small style={{ color: '#6b7280' }}>
+                      Monto: ${recordatorio.monto.toFixed(2)}
+                    </small>
+                  )}
+                </div>
+              </div>
+              <span style={{ 
+                fontSize: '0.75rem', 
+                fontWeight: '600', 
+                textTransform: 'uppercase',
+                color: recordatorio.prioridad === 'alta' ? '#dc2626' : recordatorio.prioridad === 'media' ? '#f59e0b' : '#3b82f6'
+              }}>
+                {recordatorio.prioridad === 'alta' ? 'Urgente' : recordatorio.prioridad === 'media' ? 'Importante' : 'Info'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Tarjetas de Balance */}
       <div className="balance-cards">
         <div 
@@ -1299,6 +1392,37 @@ function App() {
               {usuario?.oauth_provider && (
                 <p><strong>Método de registro:</strong> Google OAuth</p>
               )}
+            </div>
+
+            <div style={{ marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid #e5e7eb' }}>
+              <h3 style={{ color: '#1e40af', marginBottom: '15px' }}>📧 Notificaciones por Email</h3>
+              <p style={{ color: '#666', marginBottom: '15px' }}>
+                Recibe recordatorios automáticos cada día a las 8:00 AM sobre gastos recurrentes próximos a vencer y alertas de actividad
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={usuario?.notificaciones_email !== false}
+                  onChange={async (e) => {
+                    try {
+                      const res = await axios.post(
+                        `${API_URL}/me/notificaciones?activar=${e.target.checked}`,
+                        {},
+                        getConfig()
+                      );
+                      setUsuario({ ...usuario, notificaciones_email: e.target.checked });
+                      alert(res.data.message);
+                    } catch (error) {
+                      console.error('Error al actualizar notificaciones:', error);
+                      alert('Error al actualizar preferencia de notificaciones');
+                    }
+                  }}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: '600', color: '#1f2937' }}>
+                  {usuario?.notificaciones_email !== false ? 'Activadas ✅' : 'Desactivadas ❌'}
+                </span>
+              </label>
             </div>
 
             <div>
